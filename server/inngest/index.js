@@ -1,5 +1,5 @@
 import { Inngest } from "inngest";
-import prisma, { Prisma } from "../configs/prisma.js";
+import prisma from "../configs/prisma.js";
 
 // Create a client to send and receive events
 export const inngest = new Inngest({ id: "profile-marketplace" });
@@ -11,27 +11,28 @@ const syncUserCreation = inngest.createFunction(
   async ({ event }) => {
     const { data } = event;
 
-    //check if the user already exist in the database
+    // Check if the user already exists in the database
     const user = await prisma.user.findFirst({
       where: { id: data.id },
     });
     if (user) {
-      // update user data if it exist
+      // Update user data if it exists
       await prisma.user.update({
         where: { id: data.id },
         data: {
-          email: data?.email_addresses[0]?.email_addresses,
-          name: data?.first_name + " " + data?.last_name,
+          email: data?.email_addresses[0]?.email_address,
+          name: `${data?.first_name} ${data?.last_name}`,
           image: data?.image_url,
         },
       });
       return;
     }
+
     await prisma.user.create({
       data: {
         id: data.id,
-        email: data?.email_addresses[0]?.email_addresses,
-        name: data?.first_name + " " + data?.last_name,
+        email: data?.email_addresses[0]?.email_address,
+        name: `${data?.first_name} ${data?.last_name}`,
         image: data?.image_url,
       },
     });
@@ -46,7 +47,7 @@ const syncUserDeletion = inngest.createFunction(
     const { data } = event;
 
     const listings = await prisma.listing.findMany({
-      where: { ownerID: data.id },
+      where: { ownerId: data.id }, // make sure this matches your schema
     });
 
     const chats = await prisma.chat.findMany({
@@ -80,15 +81,15 @@ const syncUserUpdation = inngest.createFunction(
     const { data } = event;
 
     await prisma.user.update({
-      where: { id: user.id },
+      where: { id: data.id },
       data: {
-        email: data?.email_addresses[0]?.email_addresses,
-        name: data?.first_name + " " + data?.last_name,
+        email: data?.email_addresses[0]?.email_address,
+        name: `${data?.first_name} ${data?.last_name}`,
         image: data?.image_url,
       },
     });
   },
 );
 
-// Create an empty array where we'll export future Inngest functions
+// Export all Inngest functions
 export const functions = [syncUserCreation, syncUserDeletion, syncUserUpdation];

@@ -29,9 +29,8 @@ model User {
 enum Platform {
     youtube
     instagram
-    tiktok
     facebook
-    twitter
+    x
     linkedin
     pinterest
     snapchat

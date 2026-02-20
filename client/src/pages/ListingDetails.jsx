@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { getProfileLink, platformIcons, dummyUsers } from "../assets/assets";
+import { getProfileLink, platformIcons } from "../assets/assets";
 import { useDispatch, useSelector } from "react-redux";
 
 import {
@@ -19,20 +19,28 @@ import {
   ShoppingBagIcon,
   User,
 } from "lucide-react";
+
 import { setChat } from "../app/features/chatSlice";
+import { useAuth, useClerk, useUser } from "@clerk/clerk-react";
+import toast from "react-hot-toast";
+import api from "../configs/axios.js";
 
 const ListingDetails = () => {
-  const dispatch = useDispatch();
+  const { user, isLoaded } = useUser();
+  const { openSignIn } = useClerk();
+  const { getToken } = useAuth();
 
+  const dispatch = useDispatch();
   const navigate = useNavigate();
   const currency = import.meta.env.VITE_CURRENCY || "$";
 
   const [listing, setListing] = useState(null);
-  const profileLink =
-    listing && getProfileLink(listing.platform, listing.username);
 
   const { listingId } = useParams();
   const { listings } = useSelector((state) => state.listing);
+
+  const profileLink =
+    listing && getProfileLink(listing.platform, listing.username);
 
   const [current, setCurrent] = useState(0);
   const images = listing?.images || [];
@@ -43,22 +51,42 @@ const ListingDetails = () => {
   const nextSlide = () =>
     setCurrent((prev) => (prev === images.length - 1 ? 0 : prev + 1));
 
-  const purchaseAccount = async () => {};
+  const purchaseAccount = async () => {
+    try {
+      if (!user) {
+        return openSignIn();
+      }
+
+      toast.loading("creating payment link...");
+      const token = await getToken();
+      const { data } = await api.get(
+        `/api/listing/purchase-account/${listing.id}`,
+        { headers: { Authorization: `Bearer ${token}` } },
+      );
+      toast.dismissAll();
+      window.location.href = data.paymentLink;
+    } catch (error) {
+      toast.dismissAll();
+      toast.error(error?.response?.data?.message || error.message);
+      console.log(error);
+    }
+  };
 
   const loadChatbox = async () => {
-    dispatch(setChat({ listing: listing }));
+    if (!isLoaded || !user) {
+      return toast("Please login to chat with seller");
+    }
+    if (user.id === listing.ownerId) {
+      return toast("You can't chat with your own listing");
+    }
+    dispatch(setChat({ listing }));
   };
 
   useEffect(() => {
     const foundListing = listings.find((listing) => listing.id === listingId);
 
     if (foundListing) {
-      const owner = dummyUsers.find((user) => user.id === foundListing.ownerId);
-
-      setListing({
-        ...foundListing,
-        owner, // attach full owner object
-      });
+      setListing(foundListing);
     }
   }, [listingId, listings]);
 
@@ -87,11 +115,13 @@ const ListingDetails = () => {
                       <ArrowUpRightFromSquareIcon className="size-4 hover:text-indigo-500" />
                     </Link>
                   </h2>
+
                   <p className="text-gray-500 text-sm">
-                    @{listing.username} .{" "}
+                    @{listing.username} ·{" "}
                     {listing.platform?.charAt(0).toUpperCase() +
                       listing.platform?.slice(1)}
                   </p>
+
                   <div className="flex gap-2 mt-2">
                     {listing.verified && (
                       <span className="flex items-center text-xs bg-indigo-50 text-indigo-600 px-2 py-1 rounded-md">
@@ -118,15 +148,16 @@ const ListingDetails = () => {
               </div>
             </div>
           </div>
+
           {/* Screenshot Section */}
-          {images?.length > 0 && (
+          {images.length > 0 && (
             <div className="bg-white rounded-xl border border-gray-200 mb-5 overflow-hidden">
               <div className="p-4">
                 <h4 className="font-semibold text-gray-800">
                   Screenshots & Proof
                 </h4>
               </div>
-              {/* Slider Container */}
+
               <div className="relative w-full aspect-video overflow-hidden">
                 <div
                   className="flex transition-transform duration-300 ease-in-out"
@@ -142,13 +173,13 @@ const ListingDetails = () => {
                   ))}
                 </div>
 
-                {/* Navigation Button */}
                 <button
                   onClick={prevSlide}
                   className="absolute left-3 top-1/2 -translate-y-1/2 bg-white/70 hover:bg-white p-2 rounded-full shadow"
                 >
                   <ChevronLeftIcon className="w-5 h-5 text-gray-700" />
                 </button>
+
                 <button
                   onClick={nextSlide}
                   className="absolute right-3 top-1/2 -translate-y-1/2 bg-white/70 hover:bg-white p-2 rounded-full shadow"
@@ -156,13 +187,13 @@ const ListingDetails = () => {
                   <ChevronRightIcon className="w-5 h-5 text-gray-700" />
                 </button>
 
-                {/* Dots Indicator */}
+                {/* Dots */}
                 <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-2">
-                  {images?.map((_, index) => (
+                  {images.map((_, index) => (
                     <button
                       key={index}
                       onClick={() => setCurrent(index)}
-                      className={`w-2.5 h-2.5 rounded-full transition ${
+                      className={`w-2.5 h-2.5 rounded-full ${
                         current === index ? "bg-indigo-600" : "bg-gray-300"
                       }`}
                     />
@@ -171,36 +202,39 @@ const ListingDetails = () => {
               </div>
             </div>
           )}
+
           {/* Account Metrics */}
           <div className="bg-white rounded-xl border border-gray-200 mb-5">
             <div className="p-4 border-b border-gray-100">
               <h4 className="font-semibold text-gray-800">Account Metrics</h4>
             </div>
+
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 text-center">
               <div>
                 <User className="mx-auto text-gray-400 w-5 h-5 mb-1" />
-                <p className="font-semibold text-gray-800">
+                <p className="font-semibold">
                   {listing.followers_count?.toLocaleString()}
                 </p>
                 <p className="text-xs text-gray-500">Followers</p>
               </div>
+
               <div>
                 <LineChart className="mx-auto text-gray-400 w-5 h-5 mb-1" />
-                <p className="font-semibold text-gray-800">
-                  {listing.engagement_rate}%
-                </p>
+                <p className="font-semibold">{listing.engagement_rate}%</p>
                 <p className="text-xs text-gray-500">Engagement</p>
               </div>
+
               <div>
                 <Eye className="mx-auto text-gray-400 w-5 h-5 mb-1" />
-                <p className="font-semibold text-gray-800">
+                <p className="font-semibold">
                   {listing.monthly_views?.toLocaleString()}
                 </p>
                 <p className="text-xs text-gray-500">Monthly Views</p>
               </div>
+
               <div>
                 <Calendar className="mx-auto text-gray-400 w-5 h-5 mb-1" />
-                <p className="font-semibold text-gray-800">
+                <p className="font-semibold">
                   {new Date(listing.createdAt).toLocaleString()}
                 </p>
                 <p className="text-xs text-gray-500">Listed</p>
@@ -219,57 +253,64 @@ const ListingDetails = () => {
           </div>
 
           {/* Additional Details */}
-
           <div className="bg-white rounded-xl border border-gray-200 mb-5">
             <div className="p-4 border-b border-gray-100">
               <h4 className="font-semibold text-gray-800">
                 Additional Details
               </h4>
             </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 text-sm">
               <div>
                 <p className="text-gray-500">Niche</p>
                 <p className="font-medium capitalize">{listing.niche}</p>
               </div>
+
               <div>
                 <p className="text-gray-500">Primary Country</p>
-                <p className="flex items-center font-medium ">
+                <p className="flex items-center font-medium">
                   <MapPin className="size-4 mr-1 text-gray-400" />
                   {listing.country}
                 </p>
               </div>
+
               <div>
                 <p className="text-gray-500">Audience Age</p>
-                <p className="font-medium ">{listing.age_range}</p>
+                <p className="font-medium">{listing.age_range}</p>
               </div>
+
               <div>
                 <p className="text-gray-500">Platform Verified</p>
-                <p className="font-medium ">
+                <p className="font-medium">
                   {listing.platformAssured ? "Yes" : "No"}
                 </p>
               </div>
+
               <div>
                 <p className="text-gray-500">Monetization</p>
-                <p className="font-medium ">
+                <p className="font-medium">
                   {listing.monetized ? "Enabled" : "Disabled"}
                 </p>
               </div>
+
               <div>
                 <p className="text-gray-500">Status</p>
-                <p className="font-medium capitalize ">{listing.status}</p>
+                <p className="font-medium capitalize">{listing.status}</p>
               </div>
             </div>
           </div>
         </div>
-        {/* Seller Info & Purchase Options */}
+
+        {/* Seller Info */}
         <div className="bg-white min-w-full md:min-w-92.5 rounded-xl border border-gray-200 p-5 max-md:mb-10">
           <h4 className="font-semibold text-gray-800 mb-4">
             Seller Information
           </h4>
+
           <div className="flex items-center gap-3 mb-2">
             <img
               src={listing.owner?.image}
-              alt="seller image"
+              alt="seller"
               className="size-10 rounded-full"
             />
             <div>
@@ -277,13 +318,12 @@ const ListingDetails = () => {
               <p className="text-sm text-gray-500">{listing.owner?.email}</p>
             </div>
           </div>
-          <div className="flex items-center justify-between text-sm text-gray-600 mb-4">
-            <p>
-              Member Since{" "}
-              <span className="font-medium">
-                {new Date(listing.owner?.createdAt).toDateString()}
-              </span>
-            </p>
+
+          <div className="text-sm text-gray-600 mb-4">
+            Member Since{" "}
+            <span className="font-medium">
+              {new Date(listing.owner?.createdAt).toDateString()}
+            </span>
           </div>
 
           <button
@@ -307,7 +347,7 @@ const ListingDetails = () => {
       </div>
 
       {/* Footer */}
-      <div className=" bg-white border-t border-gray-200 p-4 text-center mt-28">
+      <div className="bg-white border-t border-gray-200 p-4 text-center mt-28">
         <p className="text-sm text-gray-500">
           © 2026 <span className="text-indigo-600">Sellwave</span>. All rights
           reserved.

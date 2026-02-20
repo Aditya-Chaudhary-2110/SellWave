@@ -21,7 +21,8 @@ const ListingCard = ({ listing }) => {
       <div className="p-5 pt-8">
         {/* header */}
         <div className="flex items-center gap-3 mb-3">
-          {platformIcons[listing.platform]}
+          {platformIcons[listing.platform?.toLowerCase()?.trim()] ?? null}
+
           <div className="flex flex-col">
             <h2>{listing.title}</h2>
             <p>

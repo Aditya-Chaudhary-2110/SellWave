@@ -1,13 +1,22 @@
 import { Loader2Icon, Upload } from "lucide-react";
 import { useState, useEffect } from "react";
-import { useSelector } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { useNavigate, useParams } from "react-router-dom";
 import toast from "react-hot-toast";
+import { useAuth } from "@clerk/clerk-react";
+import {
+  getAllPublicListing,
+  getAllUserListing,
+} from "../app/features/listingSlice";
+import api from "../configs/axios";
 
 const ManageListing = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { userListings } = useSelector((state) => state.listing);
+
+  const { getToken } = useAuth();
+  const dispatch = useDispatch();
 
   const [loadingListing, setLoadingListing] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
@@ -52,7 +61,7 @@ const ManageListing = () => {
     "beauty",
     "business",
     "education",
-    "enterainment",
+    "entertainment",
     "music",
     "art",
     "sports",
@@ -115,8 +124,55 @@ const ManageListing = () => {
     }
   }, [id, userListings, navigate]);
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
+    toast.loading("Saving...");
+    const dataCopy = structuredClone(formData);
+    try {
+      if (isEditing) {
+        dataCopy.images = formData.images.filter(
+          (image) => typeof image === "string",
+        );
+        const formDataInstance = new FormData();
+        formDataInstance.append("accountDetails", JSON.stringify(dataCopy));
+
+        formData.images
+          .filter((image) => typeof image !== "string")
+          .forEach((image) => {
+            formDataInstance.append("images", image);
+          });
+
+        const token = await getToken();
+
+        const { data } = await api.put("/api/listing", formDataInstance, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        toast.dismissAll();
+        toast.success(data.message);
+        dispatch(getAllUserListing({ getToken }));
+        dispatch(getAllPublicListing());
+        navigate("/my-listings");
+      } else {
+        delete dataCopy.images;
+        const formDataInstance = new FormData();
+        formDataInstance.append("accountDetails", JSON.stringify(dataCopy));
+        formData.images.forEach((image) => {
+          formDataInstance.append("images", image);
+        });
+        const token = await getToken();
+        const { data } = await api.post("api/listing", formDataInstance, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        toast.dismissAll();
+        toast.success(data.message);
+        dispatch(getAllUserListing({ getToken }));
+        dispatch(getAllPublicListing());
+        navigate("/my-listings");
+      }
+    } catch (error) {
+      toast.dismissAll();
+      toast.error(error?.response?.data?.message || error.message);
+    }
   };
 
   if (loadingListing) {
@@ -207,7 +263,7 @@ const ManageListing = () => {
                 min={0}
                 value={formData.monthly_views}
                 placeholder="100000"
-                onChange={(v) => handleInputChange("monthly-views", v)}
+                onChange={(v) => handleInputChange("monthly_views", v)}
               />
             </div>
 
@@ -260,7 +316,7 @@ const ManageListing = () => {
           </Section>
           {/* Images */}
           <Section title="Screenshots & Proof">
-            <div className="border-2 border-dashed border-gray-300 rounded-lg -6 text-center">
+            <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
               <input
                 type="file"
                 id="images"

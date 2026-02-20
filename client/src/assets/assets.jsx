@@ -24,15 +24,15 @@ export const assets = {
 };
 
 export const socialMediaLinks = {
-  YouTube: "https://www.youtube.com",
-  Instagram: "https://www.instagram.com",
-  X: "https://www.x.com",
-  Facebook: "https://www.facebook.com",
-  Linkedin: "https://www.linkedin.com",
-  Pinterest: "https://www.pinterest.com",
-  Snapchat: "https://www.snapchat.com",
-  Twitch: "https://www.twitch.tv",
-  Discord: "https://discord.gg",
+  youTube: "https://www.youtube.com",
+  instagram: "https://www.instagram.com",
+  x: "https://www.x.com",
+  facebook: "https://www.facebook.com",
+  linkedin: "https://www.linkedin.com",
+  pinterest: "https://www.pinterest.com",
+  snapchat: "https://www.snapchat.com",
+  twitch: "https://www.twitch.tv",
+  discord: "https://discord.gg",
 };
 
 export function getProfileLink(platform, username) {
@@ -58,45 +58,36 @@ export function getProfileLink(platform, username) {
       return `${base}/${cleanUsername}`;
   }
 }
-
 export const platformIcons = {
-  YouTube: (
+  youtube: (
     <SiYoutube fill="#FF0000" className="size-10 p-2 rounded bg-[#FF000010]" />
   ),
-
-  Instagram: (
+  instagram: (
     <SiInstagram
       fill="#E4405F"
       className="size-10 p-2 rounded bg-[#E4405F10]"
     />
   ),
-
-  X: <SiX fill="#000000" className="size-10 p-2 rounded bg-[#00000010]" />,
-
-  Facebook: (
+  x: <SiX fill="#000000" className="size-10 p-2 rounded bg-[#00000010]" />,
+  facebook: (
     <SiFacebook fill="#1877F2" className="size-10 p-2 rounded bg-[#1877F210]" />
   ),
-
-  Linkedin: (
+  linkedin: (
     <SiLinkedin fill="#0A66C2" className="size-10 p-2 rounded bg-[#0A66C210]" />
   ),
-
-  Pinterest: (
+  pinterest: (
     <SiPinterest
       fill="#BD081C"
       className="size-10 p-2 rounded bg-[#BD081C10]"
     />
   ),
-
-  Snapchat: (
+  snapchat: (
     <SiSnapchat fill="#FFFC00" className="size-10 p-2 rounded bg-[#FFFC0010]" />
   ),
-
-  Twitch: (
+  twitch: (
     <SiTwitch fill="#9146FF" className="size-10 p-2 rounded bg-[#9146FF10]" />
   ),
-
-  Discord: (
+  discord: (
     <SiDiscord fill="#5865F2" className="size-10 p-2 rounded bg-[#5865F210]" />
   ),
 };

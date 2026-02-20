@@ -1,24 +1,26 @@
 import imagekit from "../configs/imageKit.js";
 import prisma from "../configs/prisma.js";
 import fs from "fs";
-import stripe from "stripe";
+import Stripe from "stripe";
 import { inngest } from "../inngest/index.js";
 
 // controller for adding listing to database
-
 export const addListing = async (req, res) => {
   try {
     const { userId } = await req.auth();
+
     if (req.plan !== "premium") {
       const listingCount = await prisma.listing.count({
         where: { ownerId: userId },
       });
+
       if (listingCount >= 5) {
         return res
           .status(400)
           .json({ message: "you have reached the free listing limit" });
       }
     }
+
     const accountDetails = JSON.parse(req.body.accountDetails);
 
     accountDetails.followers_count = parseFloat(accountDetails.followers_count);
@@ -28,21 +30,21 @@ export const addListing = async (req, res) => {
     accountDetails.platform = accountDetails.platform.toLowerCase();
     accountDetails.niche = accountDetails.niche.toLowerCase();
 
-    accountDetails.username.startsWith("@")
-      ? (accountDetails.username = accountDetails.username.slice(1))
-      : null;
+    if (accountDetails.username?.startsWith("@")) {
+      accountDetails.username = accountDetails.username.slice(1);
+    }
 
-    const uploadImages = req.files.map(async (file) => {
-      const response = await imagekit.files.upload({
-        file: fs.createReadStream(file.path),
-        fileName: `${Date.now()}.png`,
-        folder: "Sell-wave",
-        transformation: { pre: "w-1280, h-auto" },
-      });
-      return response.url;
-    });
+    const uploadImages =
+      req.files?.map(async (file) => {
+        const response = await imagekit.files.upload({
+          file: fs.createReadStream(file.path),
+          fileName: `${Date.now()}.png`,
+          folder: "Sell-wave",
+          transformation: { pre: "w-1280, h-auto" },
+        });
+        return response.url;
+      }) || [];
 
-    // Wait for all uploads to complete
     const images = await Promise.all(uploadImages);
 
     const listing = await prisma.listing.create({
@@ -52,6 +54,7 @@ export const addListing = async (req, res) => {
         ...accountDetails,
       },
     });
+
     return res
       .status(201)
       .json({ message: "Account Listed successfully", listing });
@@ -86,7 +89,6 @@ export const getAllPublicListing = async (req, res) => {
 };
 
 // Controller for getting all user listing
-
 export const getAllUserListing = async (req, res) => {
   try {
     const { userId } = await req.auth();
@@ -129,7 +131,6 @@ export const getAllUserListing = async (req, res) => {
 };
 
 // Controller for updating listing in database
-
 export const updateListing = async (req, res) => {
   try {
     const { userId } = await req.auth();
@@ -194,15 +195,17 @@ export const toggleStatus = async (req, res) => {
     const { id } = req.params;
     const { userId } = await req.auth();
 
-    const listing = await prisma.listing.findUnique({
-      where: { id, ownerId: userId },
+    const listing = await prisma.listing.findFirst({
+      where: { id, ownerId: userId }, // FIXED
     });
+
     if (!listing) {
       return res.status(404).json({ message: "Listing not found" });
     }
+
     if (listing.status === "active" || listing.status === "inactive") {
       await prisma.listing.update({
-        where: { id, ownerId: userId },
+        where: { id },
         data: { status: listing.status === "active" ? "inactive" : "active" },
       });
     } else if (listing.status === "ban") {
@@ -210,6 +213,7 @@ export const toggleStatus = async (req, res) => {
     } else if (listing.status === "sold") {
       return res.status(404).json({ message: "Your listing is sold" });
     }
+
     return res.json({
       message: "Listing status updated successfully",
       listing,
@@ -229,6 +233,7 @@ export const deleteUserListing = async (req, res) => {
       where: { id: listingId, ownerId: userId },
       include: { owner: true },
     });
+
     if (!listing) {
       return res.status(404).json({ message: "Listing is not found" });
     }
@@ -236,8 +241,6 @@ export const deleteUserListing = async (req, res) => {
     if (listing.status === "sold") {
       return res.status(400).json({ message: "sold listing can't be deleted" });
     }
-
-    // if password has been changed, send the new password to the owner
 
     if (listing.isCredentialChanged) {
       await inngest.send({
@@ -263,7 +266,8 @@ export const addCredential = async (req, res) => {
     const { userId } = await req.auth();
     const { listingId, credential } = req.body;
 
-    if (credential.length === 0 || !listingId) {
+    if (!credential || credential.length === 0 || !listingId) {
+      // FIXED
       return res.status(400).json({ message: "Missing Feilds" });
     }
 
@@ -272,9 +276,9 @@ export const addCredential = async (req, res) => {
     });
 
     if (!listing) {
-      return res
-        .status(404)
-        .json({ message: "Listing not found or you are not the owner" });
+      return res.status(404).json({
+        message: "Listing not found or you are not the owner",
+      });
     }
 
     await prisma.credential.create({
@@ -304,13 +308,12 @@ export const markFeatured = async (req, res) => {
     if (req.plan !== "premium") {
       return res.status(400).json({ message: "Premium plan required" });
     }
-    // Unset all other featured listings
+
     await prisma.listing.updateMany({
       where: { ownerId: userId },
       data: { featured: false },
     });
 
-    // Mark the listing as featured
     await prisma.listing.update({
       where: { id },
       data: { featured: true },
@@ -326,22 +329,21 @@ export const markFeatured = async (req, res) => {
 export const getAllUserOrders = async (req, res) => {
   try {
     const { userId } = await req.auth();
+
     let orders = await prisma.transaction.findMany({
       where: { userId, isPaid: true },
       include: { listing: true },
     });
 
-    if (!orders || orders.length === 0) {
-      return res.json({ orders: [] });
-    }
-    // Attach the credential to each order
+    if (!orders.length) return res.json({ orders: [] });
+
     const credentials = await prisma.credential.findMany({
-      where: { listingId: { in: orders.map((order) => order.listingId) } },
+      where: { listingId: { in: orders.map((o) => o.listingId) } },
     });
 
     const ordersWithCredentials = orders.map((order) => {
       const credential = credentials.find(
-        (cred) => cred.listingId === order.listingId,
+        (c) => c.listingId === order.listingId,
       );
       return { ...order, credential };
     });
@@ -359,6 +361,12 @@ export const withdrawAmount = async (req, res) => {
     const { amount, account } = req.body;
 
     const user = await prisma.user.findUnique({ where: { id: userId } });
+
+    if (!user) {
+      // FIXED
+      return res.status(404).json({ message: "User not found" });
+    }
+
     const balance = user.earned - user.withdrawn;
 
     if (amount > balance) {
@@ -366,11 +374,7 @@ export const withdrawAmount = async (req, res) => {
     }
 
     const withdrawal = await prisma.withdrawal.create({
-      data: {
-        userId,
-        amount,
-        account,
-      },
+      data: { userId, amount, account },
     });
 
     await prisma.user.update({
@@ -396,15 +400,15 @@ export const purchaseAccount = async (req, res) => {
     });
 
     if (!listing) {
-      return res
-        .status(404)
-        .json({ message: "Listing not found or not active" });
+      return res.status(404).json({
+        message: "Listing not found or not active",
+      });
     }
 
     if (listing.ownerId === userId) {
-      return res
-        .status(400)
-        .json({ message: "You con't purchase your own listing" });
+      return res.status(400).json({
+        message: "You con't purchase your own listing",
+      });
     }
 
     const transaction = await prisma.transaction.create({
@@ -416,7 +420,7 @@ export const purchaseAccount = async (req, res) => {
       },
     });
 
-    const stripeInstance = new stripe(process.env.STRIPE_SECRET_KEY);
+    const stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY); // FIXED
 
     const session = await stripeInstance.checkout.sessions.create({
       success_url: `${origin}/loading/my-orders`,
@@ -426,7 +430,7 @@ export const purchaseAccount = async (req, res) => {
           price_data: {
             currency: "usd",
             product_data: {
-              name: `Purchasing Account @${listing.username} of ${listing.platform} `,
+              name: `Purchasing Account @${listing.username} of ${listing.platform}`,
             },
             unit_amount: Math.floor(transaction.amount) * 100,
           },

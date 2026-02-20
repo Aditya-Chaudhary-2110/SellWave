@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
-import { dummyOrders, platformIcons } from "../assets/assets";
+import { platformIcons } from "../assets/assets";
 import toast from "react-hot-toast";
+import api from "../configs/axios.js";
 import {
   CheckCircle2,
   ChevronDown,
@@ -13,7 +14,7 @@ import { useAuth, useUser } from "@clerk/clerk-react";
 
 const MyOrders = () => {
   const { user, isLoaded } = useUser();
-  const { getToken } = useAuth;
+  const { getToken } = useAuth();
   const currency = import.meta.env.VITE_CURRENCY || "$";
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -64,7 +65,7 @@ const MyOrders = () => {
 
   if (!orders.length) {
     return (
-      <div className="px-4 md:px-16 lg-px-24 xl-px-32">
+      <div className="px-4 md:px-16 lg:px-24 xl:px-32">
         <div className="max-w-2xl mx-auto mt-14 bg-white rounded-xl border border-gray-200 p-8 text-center">
           <h3 className="text-lg font-semibold">No orders yet</h3>
           <p className="text-sm text-gray-500 mt-2">
